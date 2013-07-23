@@ -9102,11 +9102,9 @@ int fs_auto_restore(void) {
     free(filenames);
 
     if (merger_loop()!=0) {
-        printf("merge changelog failed, please repair it manually\n");
-        return -1;
+        printf("merge changelog failed, download metadata again\n");
     }
     printf("merge changelog complete, current version: %"PRIu64"\n", metaversion);
-    fs_storeall(0);
     return 0;
 }
 
