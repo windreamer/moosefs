@@ -595,6 +595,11 @@ int masterconn_initconnect(masterconn *eptr) {
 	return 0;
 }
 
+int masterconn_isconnected(void) {
+    masterconn *eptr=masterconnsingleton;
+    return eptr && (eptr->mode == HEADER || eptr->mode == DATA);
+}
+
 void masterconn_connecttest(masterconn *eptr) {
 	int status;
 
@@ -813,7 +818,7 @@ void masterconn_reload(void) {
 		eptr->mode = KILL;
 	}
 
-	Timeout = cfg_getuint32("MASTER_TIMEOUT",60);
+	Timeout = cfg_getuint32("MASTER_TIMEOUT",10);
 	BackLogsNumber = cfg_getuint32("BACK_LOGS",50);
 	BackMetaCopies = cfg_getuint32("BACK_META_KEEP_PREVIOUS",3);
 
@@ -846,7 +851,7 @@ int masterconn_init(void) {
 	MasterHost = cfg_getstr("MASTER_HOST","mfsmaster");
 	MasterPort = cfg_getstr("MASTER_PORT","9419");
 	BindHost = cfg_getstr("BIND_HOST","*");
-	Timeout = cfg_getuint32("MASTER_TIMEOUT",60);
+	Timeout = cfg_getuint32("MASTER_TIMEOUT",10);
 	BackLogsNumber = cfg_getuint32("BACK_LOGS",50);
 	BackMetaCopies = cfg_getuint32("BACK_META_KEEP_PREVIOUS",3);
 

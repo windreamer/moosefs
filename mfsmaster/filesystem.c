@@ -52,6 +52,7 @@
 #include "cfg.h"
 #include "main.h"
 #include "changelog.h"
+#include "masterconn.h"
 #include "../mfsmetarestore/merger.h"
 #endif
 
@@ -7062,7 +7063,7 @@ enum {FLAG_TREE,FLAG_TRASH,FLAG_RESERVED};
 
 #ifndef METARESTORE
 int fs_ismastermode() {
-	return MasterMode;
+	return MasterMode && !masterconn_isconnected();
 }
 #endif
 

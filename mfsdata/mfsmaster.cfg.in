@@ -42,7 +42,7 @@
 # from mfsmetalogger
 # MASTER_HOST = mfsmaster
 # MASTER_PORT = 9419
-# MASTER_TIMEOUT = 60
+# MASTER_TIMEOUT = 10
 # MASTER_RECONNECTION_DELAY = 5
 
 # deprecated:
