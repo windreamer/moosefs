@@ -1988,6 +1988,8 @@ void matocsserv_nop(void) {
 			if (eptr->incsdb) {
 				matocsserv_csdb_lost_connection(eptr->servip,eptr->servport);
 			}
+            writable[eptr->sock]=NULL;
+            event_del(eptr->sock);
 			tcpclose(eptr->sock);
 			if (eptr->inputpacket.packet) {
 				free(eptr->inputpacket.packet);

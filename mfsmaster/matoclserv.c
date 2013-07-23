@@ -3747,6 +3747,7 @@ void matoclserv_term(void) {
 	filelist *of,*ofn;
 
 	syslog(LOG_NOTICE,"main master server module: closing %s:%s",ListenHost,ListenPort);
+    event_del(lsock);
 	tcpclose(lsock);
 
 	for (eptr = matoclservhead ; eptr ; eptr = eptrn) {
