@@ -84,7 +84,9 @@ int event_add(int fd,int mask,event_cb fun,void *data) {
 }
 
 int event_del(int fd) {
-    if (!pollevents[fd].fun) return 0;
+    pollevents[fd].mask = 0;
+    pollevents[fd].fun = NULL;
+    pollevents[fd].data = NULL;
 #ifdef HAVE_EPOLL
     struct epoll_event ee;
     if (epoll_ctl(pollfd,EPOLL_CTL_DEL,fd,&ee) == -1
@@ -101,9 +103,6 @@ int event_del(int fd) {
         return -1;
     }
 #endif    
-    pollevents[fd].mask = 0;
-    pollevents[fd].fun = NULL;
-    pollevents[fd].data = NULL;
     return 0;
 }
 
@@ -157,7 +156,12 @@ void event_serve(struct pollfd *pdesc) {
         if (evs[i].flags & EV_EOF) mask |= POLLHUP;
         if (evs[i].filter == EVFILT_WRITE) mask |= POLLOUT;
 #endif
-        pollevents[fd].fun(fd,mask,pollevents[fd].data);
+        if (pollevents[fd].fun) {
+            pollevents[fd].fun(fd,mask,pollevents[fd].data);
+        } else {
+            fprintf(stderr, "unexpected fd event: %d %d\n", fd, mask);
+            event_del(fd);
+        }
     }
 #else
     for (i=0; i<=maxfd; i++) {
