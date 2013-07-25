@@ -1184,9 +1184,9 @@ void masterconn_serve(struct pollfd *pdesc) {
 			if ((eptr->mode==HEADER || eptr->mode==DATA) && eptr->lastread+Timeout<now) {
 				eptr->mode = KILL;
 			}
-			if ((eptr->mode==HEADER || eptr->mode==DATA) && eptr->lastwrite+(Timeout/3)<now && eptr->outputhead==NULL) {
-				masterconn_create_attached_packet(eptr,ANTOAN_NOP,0);
-			}
+		}
+		if ((eptr->mode==HEADER || eptr->mode==DATA) && eptr->lastwrite+(Timeout/3)<now && eptr->outputhead==NULL) {
+			masterconn_create_attached_packet(eptr,ANTOAN_NOP,0);
 		}
 	}
 #ifdef BGJOBS
