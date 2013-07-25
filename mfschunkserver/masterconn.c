@@ -1166,37 +1166,35 @@ void masterconn_serve(struct pollfd *pdesc) {
 		if (eptr->sock>=0 && eptr->pdescpos>=0 && (pdesc[eptr->pdescpos].revents & POLLOUT)) { // FD_ISSET(eptr->sock,wset)) {
 			masterconn_connecttest(eptr);
 		}
-	} else {
+	} else if (eptr->mode==HEADER || eptr->mode==DATA) {
 #ifdef BGJOBS
-		if ((eptr->mode==HEADER || eptr->mode==DATA) && jobfdpdescpos>=0 && (pdesc[jobfdpdescpos].revents & POLLIN)) { // FD_ISSET(jobfd,rset)) {
+		if (jobfdpdescpos>=0 && (pdesc[jobfdpdescpos].revents & POLLIN)) { // FD_ISSET(jobfd,rset)) {
 			job_pool_check_jobs(jpool);
 		}
 #endif /* BGJOBS */
 		if (eptr->pdescpos>=0) {
-			if ((eptr->mode==HEADER || eptr->mode==DATA) && (pdesc[eptr->pdescpos].revents & POLLIN)) { // FD_ISSET(eptr->sock,rset)) {
+			if (pdesc[eptr->pdescpos].revents & POLLIN) { // FD_ISSET(eptr->sock,rset)) {
 				eptr->lastread = now;
 				masterconn_read(eptr);
 			}
-			if ((eptr->mode==HEADER || eptr->mode==DATA) && (pdesc[eptr->pdescpos].revents & POLLOUT)) { // FD_ISSET(eptr->sock,wset)) {
+			if (pdesc[eptr->pdescpos].revents & POLLOUT) { // FD_ISSET(eptr->sock,wset)) {
 				eptr->lastwrite = now;
 				masterconn_write(eptr);
 			}
-			if ((eptr->mode==HEADER || eptr->mode==DATA) && eptr->lastread+Timeout<now) {
+			if (eptr->lastread+Timeout<now) {
 				eptr->mode = KILL;
 			}
 		}
-		if ((eptr->mode==HEADER || eptr->mode==DATA) && eptr->lastwrite+(Timeout/3)<now && eptr->outputhead==NULL) {
+		if (eptr->lastwrite+(Timeout/3)<now && eptr->outputhead==NULL) {
 			masterconn_create_attached_packet(eptr,ANTOAN_NOP,0);
 		}
-	}
 #ifdef BGJOBS
-	if (eptr->mode==HEADER || eptr->mode==DATA) {
 		uint32_t jobscnt = job_pool_jobs_count(jpool);
 		if (jobscnt>=stats_maxjobscnt) {
 			stats_maxjobscnt=jobscnt;
 		}
-	}
 #endif
+	}
 	if (eptr->mode == KILL) {
 #ifdef BGJOBS
 		job_pool_disable_and_change_callback_all(jpool,masterconn_unwantedjobfinished);
