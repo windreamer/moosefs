@@ -23,6 +23,7 @@ class MasterDetector(object):
         self.seq = None
         self.p = None
         self.is_master = False
+        self.start_time = None
 
     def update_conf(self, is_master):
         run_mode = 'RUN_MODE = %s' % ('master' if is_master else 'slave')
@@ -96,8 +97,19 @@ class MasterDetector(object):
             return True
         if self.is_master:
             return
-        self.is_master = True
-        self.become_master()
+        now = time.time()
+        if self.start_time is None or self.start_time + self.options.protect_time > now:
+            try:
+                os.system('echo "Warning, shadow master too young to be master: %s"|'
+                          'mail -s "[WARN]Fail to auto switch master" '
+                          'sa@douban.com tianzhongbo@douban.com'
+                          % start_time)
+                os.rename(self.options.conf, self.options.conf + '.fail')
+            finally:
+                self.stop()
+        else:
+            self.is_master = True
+            self.become_master()
 
     def start(self):
         self.zk.start()
@@ -113,12 +125,14 @@ class MasterDetector(object):
         self.update_conf(self.is_master)
         self.p = subprocess.Popen([self.options.bin, '-d', '-c', self.options.conf],
                 close_fds=True)
+        self.start_time = time.time()
         self.install_signal()
         self.zk.add_listener(self.session_lost)
 
     def wait(self):
         ret = self.p.wait()
         self.p = None
+        self.start_time = None
         return ret
 
     def stop(self):
@@ -148,6 +162,8 @@ if __name__ == '__main__':
             help='bind virtual ip for master, such as 192.168.1.110/24')
     parser.add_option('-i', '--interface', default='eth0',
             help='network interface to bind vip (default: eth0)')
+    parser.add_option('-t', '--protect_time', type=int, default=1200,
+            help='seconds shadow master needed be online to become master (default: 1200s)')
 
     options, args = parser.parse_args()
     logging.basicConfig(format='%(asctime)-15s [%(levelname)s] [%(name)-9s] %(message)s',
