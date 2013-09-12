@@ -106,7 +106,9 @@ class MasterDetector(object):
                           % start_time)
                 os.rename(self.options.conf, self.options.conf + '.fail')
             finally:
-                self.stop()
+                self.start_time = None
+                if self.p:
+                    self.p.terminate()
         else:
             self.is_master = True
             self.become_master()
