@@ -24,6 +24,7 @@ class MasterDetector(object):
         self.p = None
         self.is_master = False
         self.start_time = None
+        self.is_failed = False
 
     def update_conf(self, is_master):
         run_mode = 'RUN_MODE = %s' % ('master' if is_master else 'slave')
@@ -98,7 +99,7 @@ class MasterDetector(object):
         if self.is_master:
             return
         now = time.time()
-        if self.start_time is None or self.start_time + self.options.protect_time > now:
+        if self.is_failed or self.start_time is None or self.start_time + self.options.protect_time > now:
             try:
                 os.system('echo "Warning, shadow master too young to be master: %s"|'
                           'mail -s "[WARN]Fail to auto switch master" '
@@ -107,8 +108,7 @@ class MasterDetector(object):
                 os.rename(self.options.conf, self.options.conf + '.fail')
             finally:
                 self.start_time = None
-                if self.p:
-                    self.p.terminate()
+                self.is_failed = True
         else:
             self.is_master = True
             self.become_master()
