@@ -8,6 +8,7 @@ import subprocess
 import socket
 import logging
 import threading
+import os
 
 try:
     from kazoo.client import KazooClient, KazooState
@@ -80,11 +81,18 @@ class MasterDetector(object):
                 signm = signal.SIGTERM
             if self.p:
                 self.p.send_signal(signm)
+
+        def force_master(signm, frame):
+            logging.warning('force become master')
+            self.is_master = True
+            self.become_master()
+
         signal.signal(signal.SIGTERM, handler)
         signal.signal(signal.SIGHUP, handler)
         signal.signal(signal.SIGABRT, handler)
         signal.signal(signal.SIGINT, handler)
         signal.signal(signal.SIGQUIT, handler)
+        signal.signal(signal.SIGUSR1, force_master)
 
     def session_lost(self, state):
         if state in (KazooState.LOST,):
@@ -104,8 +112,7 @@ class MasterDetector(object):
                 os.system('echo "Warning, shadow master too young to be master: %s"|'
                           'mail -s "[WARN]Fail to auto switch master" '
                           'sa@douban.com tianzhongbo@douban.com'
-                          % start_time)
-                os.rename(self.options.conf, self.options.conf + '.fail')
+                          % self.start_time)
             finally:
                 self.start_time = None
                 self.is_failed = True
