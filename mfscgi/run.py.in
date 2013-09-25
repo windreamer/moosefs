@@ -24,7 +24,6 @@ class MasterDetector(object):
         self.seq = None
         self.p = None
         self.is_master = False
-        self.start_time = None
         self.is_failed = False
 
     def update_conf(self, is_master):
@@ -59,20 +58,55 @@ class MasterDetector(object):
         if self.options.vip:
             logging.info("add vip %s %s", self.options.vip, self.options.interface)
             subprocess.call(['ip', 'addr', 'add', self.options.vip, 'dev', self.options.interface])
-            t = threading.Thread(target=self.heartbeat)
-            t.daemon=True
-            t.start()
+        t = threading.Thread(target=self.heartbeat)
+        t.daemon=True
+        t.start()
+
+    def get_changelog_ver(self):
+        path = self.options.data_path
+        result = []
+        for fn in ['changelog.0.mfs', 'changelog_ml.0.mfs']:
+            fn = os.path.join(path, fn)
+            try:
+                with open(fn, 'r') as f:
+                    size = os.fstat(f.fileno()).st_size
+                    offset = -min(size, 1024)
+                    f.seek(offset, 2)
+                    line = f.readlines()[-1]
+                    result.append(int(line.split(':')[0]))
+            except:
+                pass
+
+        if not result:
+            return None
+
+        return str(max(result))
 
     def heartbeat(self):
+        prev_time = 0
         while True:
-            logging.info("broadcast arp")
-            # it will take 2 seconds
-            ip = self.options.vip.split('/')[0]
-            try:
-                subprocess.call(('arping -U -w 1 -q -I %s %s' % (self.options.interface, ip)).split(' '))
-            except OSError:
-                logging.error("please install iputils-arp package")
-                self.stop()
+            if self.options.vip:
+                logging.info("broadcast arp")
+                # it will take 2 seconds
+                ip = self.options.vip.split('/')[0]
+                try:
+                    subprocess.call(('arping -U -w 1 -q -I %s %s' % (self.options.interface, ip)).split(' '))
+                except OSError:
+                    logging.error("please install iputils-arp package")
+                    self.stop()
+            else:
+                time.sleep(2)
+
+            now = time.time()
+            if prev_time + 600 < now:
+                ver = self.get_changelog_ver()
+                logging.info('current[%s] version: %s' , now, ver)
+                if ver:
+                    path = self.options.path
+                    if not self.zk.exists(path):
+                        self.zk.create(path, makepath=True)
+                    self.zk.set(path, ver)
+                    prev_time = now
 
     def install_signal(self):
         def handler(signm, frame):
@@ -107,15 +141,20 @@ class MasterDetector(object):
             return True
         if self.is_master:
             return
-        now = time.time()
-        if self.is_failed or self.start_time is None or self.start_time + self.options.protect_time > now:
+        ver = int(self.get_changelog_ver() or 0)
+        try:
+            ver_master = int(zk.get(self.options.path)[0])
+        except:
+            ver_master = 0
+
+        logging.info("master version: %s, mine version:%s", ver_master, ver)
+        if self.is_failed or ver < ver_master:
             try:
-                os.system('echo "Warning, shadow master too young to be master: %s"|'
-                          'mail -s "[WARN]Fail to auto switch master" '
+                os.system('echo "Warning, shadow master too young to be master: %s < %s"|'
+                          'mail -s "[WARN]Fail to auto switch master(%s)" '
                           'sa@douban.com tianzhongbo@douban.com'
-                          % self.start_time)
+                          % (ver, ver_master, socket.gethostname()))
             finally:
-                self.start_time = None
                 self.is_failed = True
         else:
             self.is_master = True
@@ -135,14 +174,12 @@ class MasterDetector(object):
         self.update_conf(self.is_master)
         self.p = subprocess.Popen([self.options.bin, '-d', '-c', self.options.conf],
                 close_fds=True)
-        self.start_time = time.time()
         self.install_signal()
         self.zk.add_listener(self.session_lost)
 
     def wait(self):
         ret = self.p.wait()
         self.p = None
-        self.start_time = None
         return ret
 
     def stop(self):
@@ -174,6 +211,8 @@ if __name__ == '__main__':
             help='network interface to bind vip (default: eth0)')
     parser.add_option('-t', '--protect_time', type=int, default=1200,
             help='seconds shadow master needed be online to become master (default: 1200s)')
+    parser.add_option('-d', '--data_path', default='/var/lib/mfs',
+            help='master data path(default: /var/lib/mfs)')
 
     options, args = parser.parse_args()
     logging.basicConfig(format='%(asctime)-15s [%(levelname)s] [%(name)-9s] %(message)s',
