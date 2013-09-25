@@ -84,6 +84,7 @@ class MasterDetector(object):
 
         def force_master(signm, frame):
             logging.warning('force become master')
+            self.is_failed = False
             self.is_master = True
             self.become_master()
 
