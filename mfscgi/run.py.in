@@ -65,7 +65,7 @@ class MasterDetector(object):
     def get_changelog_ver(self):
         path = self.options.data_path
         result = []
-        for fn in ['changelog.0.mfs', 'changelog_ml.0.mfs']:
+        for fn in ['changelog.0.mfs', 'changelog.1.mfs']:
             fn = os.path.join(path, fn)
             try:
                 with open(fn, 'r') as f:
@@ -86,7 +86,7 @@ class MasterDetector(object):
         prev_time = 0
         while True:
             if self.options.vip:
-                logging.info("broadcast arp")
+                logging.debug("broadcast arp")
                 # it will take 2 seconds
                 ip = self.options.vip.split('/')[0]
                 try:
@@ -99,7 +99,7 @@ class MasterDetector(object):
 
             now = time.time()
             if prev_time + 600 < now:
-                ver = self.get_changelog_ver()
+                ver = self.get_changelog_ver() or 0
                 logging.info('current[%s] version: %s' , now, ver)
                 if ver:
                     path = self.options.path
@@ -138,6 +138,8 @@ class MasterDetector(object):
             self.stop()
 
     def choose(self, children):
+        if not children:
+            return
         minSeq = min(children)
         logging.info("min seq is %s, mine is %s", minSeq, self.seq)
         if minSeq != self.seq:
