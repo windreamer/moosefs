@@ -4,8 +4,8 @@ AM_CPPFLAGS=-I$(top_srcdir)/mfsmaster -I$(top_srcdir)/mfscommon -DAPPNAME=mfsmet
 
 mfsmetarestore_SOURCES=\
 	main.c \
-	merger.c merger.h \
-	restore.c restore.h \
+	../mfsmaster/merger.c ../mfsmaster/merger.h \
+	../mfsmaster/restore.c ../mfsmaster/restore.h \
 	../mfsmaster/filesystem.c ../mfsmaster/filesystem.h \
 	../mfsmaster/chunks.c ../mfsmaster/chunks.h \
 	../mfscommon/strerr.c ../mfscommon/strerr.h \

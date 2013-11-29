@@ -53,7 +53,7 @@
 #include "main.h"
 #include "changelog.h"
 #include "masterconn.h"
-#include "../mfsmetarestore/merger.h"
+#include "merger.h"
 #endif
 
 #define USE_FREENODE_BUCKETS 1
