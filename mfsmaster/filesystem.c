@@ -8750,7 +8750,7 @@ void fs_new(void) {
 	statsrecord *sr;
 //#endif
 	maxnodeid = MFS_ROOT_ID;
-	metaversion = 0;
+	metaversion = 1;
 	nextsessionid = 1;
 	fsnodes_init_freebitmask();
 	root = malloc(sizeof(fsnode));
