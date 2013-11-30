@@ -1548,12 +1548,14 @@ int chunk_getversionandlocations(uint64_t chunkid,uint32_t cuip,uint32_t *versio
 void chunk_server_has_chunk(void *ptr,uint64_t chunkid,uint32_t version) {
 	chunk *c;
 	slist *s;
+	if (chunkid>=nextchunkid) {
+		// chunk server should report to wrong master, ignore it
+		// nextchunkid should not be affected by behavior of chunk server
+		return;
+	}
 	c = chunk_find(chunkid);
 	if (c==NULL) {
 //		syslog(LOG_WARNING,"chunkserver has nonexistent chunk (%016"PRIX64"_%08"PRIX32"), so create it for future deletion",chunkid,version);
-		if (chunkid>=nextchunkid) {
-			nextchunkid=chunkid+1;
-		}
 		c = chunk_new(chunkid);
 		c->version = version;
 		c->lockedto = (uint32_t)main_time()+UNUSED_DELETE_TIMEOUT;
