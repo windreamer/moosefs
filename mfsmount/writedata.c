@@ -81,7 +81,6 @@ typedef struct inodedata_s {
 	uint32_t trycnt;
 	uint8_t waitingworker;
 	uint8_t inqueue;
-	uint8_t delayed;
 	int pipe[2];
 	cblock *datachainhead,*datachaintail;
 	pthread_cond_t flushcond;	// wait for inqueue==0 (flush)
@@ -213,7 +212,6 @@ inodedata* write_get_inodedata(uint32_t inode) {
 	id->datachaintail = NULL;
 	id->waitingworker = 0;
 	id->inqueue = 0;
-	id->delayed = 0;
 	id->flushwaiting = 0;
 	id->writewaiting = 0;
 	id->lcnt = 0;
@@ -246,24 +244,24 @@ void write_free_inodedata(inodedata *fid) {
 
 /* queues */
 
+/* glock: LOCKED */
+void write_enqueue(inodedata *id) {
+	id->inqueue = 1;
+	queue_put(jqueue,0,0,(uint8_t*)id,0);
+}
+
 /* glock: UNLOCKED */
 void write_delayed_enqueue(inodedata *id,uint32_t cnt) {
 	struct timeval tv;
+	pthread_mutex_lock(&glock);
 	if (cnt>0) {
 		gettimeofday(&tv,NULL);
-		pthread_mutex_lock(&glock);
-		id->delayed = 1;
-		id->lcnt++;
-		pthread_mutex_unlock(&glock);
-		queue_put(dqueue,tv.tv_sec,tv.tv_usec,(uint8_t*)id,cnt);
+		id->inqueue = 2;
+	 	queue_put(dqueue,tv.tv_sec,tv.tv_usec,(uint8_t*)id->inode,cnt);
 	} else {
-		queue_put(jqueue,0,0,(uint8_t*)id,0);
+		write_enqueue(id);
 	}
-}
-
-/* glock: UNUSED */
-void write_enqueue(inodedata *id) {
-	queue_put(jqueue,0,0,(uint8_t*)id,0);
+	pthread_mutex_unlock(&glock);
 }
 
 /* worker thread | glock: UNUSED */
@@ -290,18 +288,16 @@ void* write_dqueue_worker(void *arg) {
 		}
 		cnt--;
 		pthread_mutex_lock(&glock);
-		id->lcnt--;
-		if (id->delayed) {
-			if (cnt>0) {
-				gettimeofday(&tv,NULL);
-				id->lcnt++;
-				queue_put(dqueue,tv.tv_sec,tv.tv_usec,(uint8_t*)id,cnt);
-			} else {
-				id->delayed=0;
-				queue_put(jqueue,0,0,(uint8_t*)id,0);
-			}
-		} else if (id->lcnt==0 && id->inqueue==0 && id->flushwaiting==0 && id->writewaiting==0) {
-			write_free_inodedata(id);
+		id = write_find_inodedata((uint32_t)id);
+		if (id==NULL || id->inqueue!=2) {
+			pthread_mutex_unlock(&glock);
+			continue;
+		}
+		if (cnt>0) {
+			gettimeofday(&tv,NULL);
+			queue_put(dqueue,tv.tv_sec,tv.tv_usec,(uint8_t*)id->inode,cnt);
+		} else {
+			write_enqueue(id);
 		}
 		pthread_mutex_unlock(&glock);
 	}
@@ -982,7 +978,6 @@ int write_block(inodedata *id,uint32_t chindx,uint16_t pos,uint32_t from,uint32_
 		}
 		pthread_mutex_unlock(&glock);
 	} else {
-		id->inqueue=1;
 		pthread_mutex_unlock(&glock);
 		write_delayed_enqueue(id,1);
 	}
@@ -1065,12 +1060,12 @@ void* write_data_new(uint32_t inode) {
 	return id;
 }
 
+/* glock: LOCKED */
 static int write_data_do_flush(inodedata *id, int release) {
 	int ret;
 
 //	gettimeofday(&s,NULL);
-	if (id->delayed) {
-		id->delayed = 0;
+	if (id->inqueue==2) {
 		write_enqueue(id);
 	}
 	id->flushwaiting++;
@@ -1087,8 +1082,7 @@ static int write_data_do_flush(inodedata *id, int release) {
 	if (release) {
 		id->lcnt--;
 	}
-	if (id->lcnt==0 && id->inqueue==0 && id->delayed==0 
-			&& id->flushwaiting==0 && id->writewaiting==0) {
+	if (id->lcnt==0 && id->inqueue==0 && id->flushwaiting==0 && id->writewaiting==0) {
 		write_free_inodedata(id);
 	}
 //	gettimeofday(&e,NULL);
