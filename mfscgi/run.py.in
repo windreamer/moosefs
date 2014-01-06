@@ -24,7 +24,6 @@ class MasterDetector(object):
         self.seq = None
         self.p = None
         self.is_master = False
-        self.is_failed = False
 
     def update_conf(self, is_master):
         run_mode = 'RUN_MODE = %s' % ('master' if is_master else 'slave')
@@ -118,7 +117,6 @@ class MasterDetector(object):
 
         def force_master(signm, frame):
             logging.warning('force become master')
-            self.is_failed = False
             if self.is_master:
                 logging.warning('already become master')
             else:
@@ -153,14 +151,11 @@ class MasterDetector(object):
             ver_master = 0
 
         logging.info("master version: %s, mine version:%s", ver_master, ver)
-        if self.is_failed or ver < ver_master:
-            try:
-                os.system('echo "Warning, shadow master too young to be master: %s < %s"|'
-                          'mail -s "[WARN]Fail to auto switch master(%s)" '
-                          'sa@douban.com tianzhongbo@douban.com'
-                          % (ver, ver_master, socket.gethostname()))
-            finally:
-                self.is_failed = True
+        if ver < ver_master:
+            os.system('echo "Warning, shadow master too young to be master: %s < %s"|'
+                      'mail -s "[WARN]Fail to auto switch master(%s)" '
+                      'sa@douban.com tianzhongbo@douban.com'
+                      % (ver, ver_master, socket.gethostname()))
         else:
             self.is_master = True
             self.become_master()
