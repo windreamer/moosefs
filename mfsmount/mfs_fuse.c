@@ -1901,11 +1901,7 @@ void mfs_open(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi) {
 	} else if ((fi->flags & O_ACCMODE) == O_RDWR) {
 		oflags |= WANT_READ | WANT_WRITE;
 	}
-	if ((fi->flags & O_ACCMODE) == O_RDONLY) {
-		status = fs_getattr(ino,ctx->uid,ctx->gid,attr); //TODO permission check
-	} else {
-		status = fs_opencheck(ino,ctx->uid,ctx->gid,oflags,attr);
-	}
+	status = fs_opencheck(ino,ctx->uid,ctx->gid,oflags,attr);
 	status = mfs_errorconv(status);
 	if (status!=0) {
 		fuse_reply_err(req, status);
@@ -1984,9 +1980,7 @@ void mfs_release(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi) {
 	if (fileinfo!=NULL) {
 		mfs_removefileinfo(fileinfo);
 	}
-	if ((fi->flags & O_ACCMODE) != O_RDONLY) {
-		fs_release(ino);
-	}
+	fs_release(ino);
 	fuse_reply_err(req,0);
 	oplog_printf(ctx,"release (%lu): OK",(unsigned long int)ino);
 }
