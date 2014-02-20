@@ -178,18 +178,19 @@ void masterconn_metachanges_log(masterconn *eptr,const uint8_t *data,uint32_t le
 	version = get64bit(&data);
     
     if (version<currentlogversion) {
-        // ignore old version
+		syslog(LOG_WARNING, "get old change: %"PRIu64":%"PRIu64", ignore",currentlogversion,version-1);
         return;
     }
 	if (currentlogversion>0 && version>currentlogversion) {
 		syslog(LOG_WARNING, "some changes lost: [%"PRIu64"-%"PRIu64"], download metadata again",currentlogversion,version-1);
         masterconn_metadownloadinit();
+        return;
 	}
 
-    changelog(version, "%s", (const char*)data); 
-	currentlogversion = version+1;
-    
     if (version == fs_getversion()) {
+		changelog(version, "%s", (const char*)data); 
+		currentlogversion = version+1;
+	
         sprintf(line, ": %s\n", data);
         if (restore_line("(live changelog)", version, line)!=STATUS_OK) {
             syslog(LOG_WARNING, "replay change log failed: version=%"PRIu64", download metadata again",version);
@@ -198,7 +199,10 @@ void masterconn_metachanges_log(masterconn *eptr,const uint8_t *data,uint32_t le
             syslog(LOG_WARNING, "restored version not match: %"PRIu64"!=%"PRIu64", download metadata again",fs_getversion(),version+1);
             masterconn_metadownloadinit();
         }
-    }
+	} else {
+		syslog(LOG_WARNING, "version not match: %"PRIu64"!=%"PRIu64", download metadata again",fs_getversion(),version);
+		masterconn_metadownloadinit();
+	}
 }
 
 int masterconn_download_end(masterconn *eptr) {
