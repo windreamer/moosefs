@@ -6704,7 +6704,6 @@ void fs_test_files() {
 	}
 	if (i==0) {
 		if (errors==ERRORS_LOG_MAX) {
-			syslog(LOG_ERR,"only first %u errors (unavailable chunks/files) were logged",ERRORS_LOG_MAX);
 			if (leng<MSGBUFFSIZE) {
 				leng += snprintf(msgbuff+leng,MSGBUFFSIZE-leng,"only first %u errors (unavailable chunks/files) were logged\n",ERRORS_LOG_MAX);
 			}
@@ -6783,31 +6782,25 @@ void fs_test_files() {
 					chunkid = f->data.fdata.chunktab[j];
 					if (chunkid>0) {
 						if (chunk_get_validcopies(chunkid,&vc)!=STATUS_OK) {
+							syslog(LOG_ERR,"structure error - chunk %016"PRIX64" not found (inode: %"PRIu32" ; index: %"PRIu32")",chunkid,f->id,j);
 							if (errors<ERRORS_LOG_MAX) {
-								syslog(LOG_ERR,"structure error - chunk %016"PRIX64" not found (inode: %"PRIu32" ; index: %"PRIu32")",chunkid,f->id,j);
 								if (leng<MSGBUFFSIZE) {
 									leng += snprintf(msgbuff+leng,MSGBUFFSIZE-leng,"structure error - chunk %016"PRIX64" not found (inode: %"PRIu32" ; index: %"PRIu32")\n",chunkid,f->id,j);
 								}
 								errors++;
 							}
 							notfoundchunks++;
-							if ((notfoundchunks%1000)==0) {
-								syslog(LOG_ERR,"unknown chunks: %"PRIu32" ...",notfoundchunks);
-							}
 							valid =0;
 							mchunks++;
 						} else if (vc==0) {
+							syslog(LOG_ERR,"currently unavailable chunk %016"PRIX64" (inode: %"PRIu32" ; index: %"PRIu32")",chunkid,f->id,j);
 							if (errors<ERRORS_LOG_MAX) {
-								syslog(LOG_ERR,"currently unavailable chunk %016"PRIX64" (inode: %"PRIu32" ; index: %"PRIu32")",chunkid,f->id,j);
 								if (leng<MSGBUFFSIZE) {
 									leng += snprintf(msgbuff+leng,MSGBUFFSIZE-leng,"currently unavailable chunk %016"PRIX64" (inode: %"PRIu32" ; index: %"PRIu32")\n",chunkid,f->id,j);
 								}
 								errors++;
 							}
 							unavailchunks++;
-							if ((unavailchunks%1000)==0) {
-								syslog(LOG_ERR,"unavailable chunks: %"PRIu32" ...",unavailchunks);
-							}
 							valid = 0;
 							mchunks++;
 						} else if (vc<f->goal) {
@@ -6820,46 +6813,37 @@ void fs_test_files() {
 				if (valid==0) {
 					mfiles++;
 					if (f->type==TYPE_TRASH) {
+						syslog(LOG_ERR,"- currently unavailable file in trash %"PRIu32": %s",f->id,fsnodes_escape_name(f->parents->nleng,f->parents->name));
 						if (errors<ERRORS_LOG_MAX) {
-							syslog(LOG_ERR,"- currently unavailable file in trash %"PRIu32": %s",f->id,fsnodes_escape_name(f->parents->nleng,f->parents->name));
 							if (leng<MSGBUFFSIZE) {
 								leng += snprintf(msgbuff+leng,MSGBUFFSIZE-leng,"- currently unavailable file in trash %"PRIu32": %s\n",f->id,fsnodes_escape_name(f->parents->nleng,f->parents->name));
 							}
 							errors++;
 							unavailtrashfiles++;
-							if ((unavailtrashfiles%1000)==0) {
-								syslog(LOG_ERR,"unavailable trash files: %"PRIu32" ...",unavailtrashfiles);
-							}
 						}
 					} else if (f->type==TYPE_RESERVED) {
+						syslog(LOG_ERR,"+ currently unavailable reserved file %"PRIu32": %s",f->id,fsnodes_escape_name(f->parents->nleng,f->parents->name));
 						if (errors<ERRORS_LOG_MAX) {
-							syslog(LOG_ERR,"+ currently unavailable reserved file %"PRIu32": %s",f->id,fsnodes_escape_name(f->parents->nleng,f->parents->name));
 							if (leng<MSGBUFFSIZE) {
 								leng += snprintf(msgbuff+leng,MSGBUFFSIZE-leng,"+ currently unavailable reserved file %"PRIu32": %s\n",f->id,fsnodes_escape_name(f->parents->nleng,f->parents->name));
 							}
 							errors++;
 							unavailreservedfiles++;
-							if ((unavailreservedfiles%1000)==0) {
-								syslog(LOG_ERR,"unavailable reserved files: %"PRIu32" ...",unavailreservedfiles);
-							}
 						}
 					} else {
 						uint8_t *path;
 						uint16_t pleng;
 						for (e=f->parents ; e ; e=e->nextparent) {
+							fsnodes_getpath(e,&pleng,&path);
+							syslog(LOG_ERR,"* currently unavailable file %"PRIu32": %s",f->id,fsnodes_escape_name(pleng,path));
 							if (errors<ERRORS_LOG_MAX) {
-								fsnodes_getpath(e,&pleng,&path);
-								syslog(LOG_ERR,"* currently unavailable file %"PRIu32": %s",f->id,fsnodes_escape_name(pleng,path));
 								if (leng<MSGBUFFSIZE) {
 									leng += snprintf(msgbuff+leng,MSGBUFFSIZE-leng,"* currently unavailable file %"PRIu32": %s\n",f->id,fsnodes_escape_name(pleng,path));
 								}
-								free(path);
 								errors++;
 							}
+							free(path);
 							unavailfiles++;
-							if ((unavailfiles%1000)==0) {
-								syslog(LOG_ERR,"unavailable files: %"PRIu32" ...",unavailfiles);
-							}
 						}
 					}
 				} else if (ugflag) {
