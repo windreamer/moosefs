@@ -18,7 +18,7 @@
 
 #include "config.h"
 
-#define MMAP_ALLOC 0
+#define MMAP_ALLOC 1
 
 // #include <execinfo.h> // for backtrace - debugs only
 #include <inttypes.h>
@@ -302,6 +302,11 @@ static uint32_t stats_version = 0;
 static uint32_t stats_duplicate = 0;
 static uint32_t stats_truncate = 0;
 static uint32_t stats_duptrunc = 0;
+
+static inline void* mmap_safe(void *addr, size_t length, int prot, int flags, int fd, off_t offset) {
+	void* ptr = mmap(addr, length, prot, flags, fd, offset);
+	return (ptr == MAP_FAILED)? NULL: ptr;
+}
 
 static inline void hdd_stats_clear(hddstats *r) {
 	memset(r,0,sizeof(hddstats));
@@ -1555,12 +1560,12 @@ void hdd_get_space(uint64_t stats[6]) {
 
 static inline void chunk_emptycrc(chunk *c) {
 #ifdef MMAP_ALLOC
-	c->crc = (uint8_t*)mmap(NULL,4096,PROT_READ | PROT_WRITE, MAP_ANON | MAP_PRIVATE,-1,0);
+	c->crc = (uint8_t*)mmap_safe(NULL,4096,PROT_READ | PROT_WRITE, MAP_ANON | MAP_PRIVATE,-1,0);
 #else
 	c->crc = (uint8_t*)malloc(4096);
 #endif
-	memset(c->crc,0,4096);	// make valgrind happy
 	passert(c->crc);
+	memset(c->crc,0,4096);	// make valgrind happy
 }
 
 static inline int chunk_readcrc(chunk *c) {
@@ -1599,7 +1604,7 @@ static inline int chunk_readcrc(chunk *c) {
 		return ERROR_IO;
 	}
 #ifdef MMAP_ALLOC
-	c->crc = (uint8_t*)mmap(NULL,4096,PROT_READ | PROT_WRITE, MAP_ANON | MAP_PRIVATE,-1,0);
+	c->crc = (uint8_t*)mmap_safe(NULL,4096,PROT_READ | PROT_WRITE, MAP_ANON | MAP_PRIVATE,-1,0);
 #else
 	c->crc = (uint8_t*)malloc(4096);
 #endif
@@ -1905,7 +1910,7 @@ static int hdd_io_begin(chunk *c,int newflag) {
 #ifdef PRESERVE_BLOCK
 		if (c->block==NULL) {
 # ifdef MMAP_ALLOC
-			c->block = (uint8_t*)mmap(NULL,MFSBLOCKSIZE,PROT_READ | PROT_WRITE, MAP_ANON | MAP_PRIVATE,-1,0);
+			c->block = (uint8_t*)mmap_safe(NULL,MFSBLOCKSIZE,PROT_READ | PROT_WRITE, MAP_ANON | MAP_PRIVATE,-1,0);
 # else
 			c->block = (uint8_t*)malloc(MFSBLOCKSIZE);
 # endif
@@ -2040,7 +2045,7 @@ int hdd_read(uint64_t chunkid,uint32_t version,uint16_t blocknum,uint8_t *buffer
 	blockbuffer = pthread_getspecific(blockbufferkey);
 	if (blockbuffer==NULL) {
 # ifdef MMAP_ALLOC
-		blockbuffer = mmap(NULL,MFSBLOCKSIZE,PROT_READ | PROT_WRITE, MAP_ANON | MAP_PRIVATE,-1,0);
+		blockbuffer = mmap_safe(NULL,MFSBLOCKSIZE,PROT_READ | PROT_WRITE, MAP_ANON | MAP_PRIVATE,-1,0);
 # else
 		blockbuffer = malloc(MFSBLOCKSIZE);
 # endif
@@ -2202,7 +2207,7 @@ int hdd_write(uint64_t chunkid,uint32_t version,uint16_t blocknum,const uint8_t 
 	blockbuffer = pthread_getspecific(blockbufferkey);
 	if (blockbuffer==NULL) {
 # ifdef MMAP_ALLOC
-		blockbuffer = mmap(NULL,MFSBLOCKSIZE,PROT_READ | PROT_WRITE, MAP_ANON | MAP_PRIVATE,-1,0);
+		blockbuffer = mmap_safe(NULL,MFSBLOCKSIZE,PROT_READ | PROT_WRITE, MAP_ANON | MAP_PRIVATE,-1,0);
 # else
 		blockbuffer = malloc(MFSBLOCKSIZE);
 # endif
@@ -2592,7 +2597,7 @@ static int hdd_int_test(uint64_t chunkid,uint32_t version) {
 	blockbuffer = pthread_getspecific(blockbufferkey);
 	if (blockbuffer==NULL) {
 # ifdef MMAP_ALLOC
-		blockbuffer = mmap(NULL,MFSBLOCKSIZE,PROT_READ | PROT_WRITE, MAP_ANON | MAP_PRIVATE,-1,0);
+		blockbuffer = mmap_safe(NULL,MFSBLOCKSIZE,PROT_READ | PROT_WRITE, MAP_ANON | MAP_PRIVATE,-1,0);
 # else
 		blockbuffer = malloc(MFSBLOCKSIZE);
 # endif
@@ -2673,7 +2678,7 @@ static int hdd_int_duplicate(uint64_t chunkid,uint32_t version,uint32_t newversi
 	blockbuffer = pthread_getspecific(blockbufferkey);
 	if (blockbuffer==NULL) {
 # ifdef MMAP_ALLOC
-		blockbuffer = mmap(NULL,MFSBLOCKSIZE,PROT_READ | PROT_WRITE, MAP_ANON | MAP_PRIVATE,-1,0);
+		blockbuffer = mmap_safe(NULL,MFSBLOCKSIZE,PROT_READ | PROT_WRITE, MAP_ANON | MAP_PRIVATE,-1,0);
 # else
 		blockbuffer = malloc(MFSBLOCKSIZE);
 # endif
@@ -2946,7 +2951,7 @@ static int hdd_int_truncate(uint64_t chunkid,uint32_t version,uint32_t newversio
 	blockbuffer = pthread_getspecific(blockbufferkey);
 	if (blockbuffer==NULL) {
 # ifdef MMAP_ALLOC
-		blockbuffer = mmap(NULL,MFSBLOCKSIZE,PROT_READ | PROT_WRITE, MAP_ANON | MAP_PRIVATE,-1,0);
+		blockbuffer = mmap_safe(NULL,MFSBLOCKSIZE,PROT_READ | PROT_WRITE, MAP_ANON | MAP_PRIVATE,-1,0);
 # else
 		blockbuffer = malloc(MFSBLOCKSIZE);
 # endif
@@ -3110,7 +3115,7 @@ static int hdd_int_duptrunc(uint64_t chunkid,uint32_t version,uint32_t newversio
 	blockbuffer = pthread_getspecific(blockbufferkey);
 	if (blockbuffer==NULL) {
 # ifdef MMAP_ALLOC
-		blockbuffer = mmap(NULL,MFSBLOCKSIZE,PROT_READ | PROT_WRITE, MAP_ANON | MAP_PRIVATE,-1,0);
+		blockbuffer = mmap_safe(NULL,MFSBLOCKSIZE,PROT_READ | PROT_WRITE, MAP_ANON | MAP_PRIVATE,-1,0);
 # else
 		blockbuffer = malloc(MFSBLOCKSIZE);
 # endif
