@@ -85,6 +85,10 @@ typedef struct _threc {
 } threc;
 */
 
+static inline void* mmap_safe(void *addr, size_t length, int prot, int flags, int fd, off_t offset) {
+	void* ptr = mmap(addr, length, prot, flags, fd, offset);
+	return (ptr == MAP_FAILED)? NULL: ptr;
+}
 
 typedef struct _acquired_file {
 	uint32_t inode;
@@ -269,7 +273,7 @@ void fs_notify_sendremoved(uint32_t cnt,uint32_t *inodes) {
 		if (notify_buff) {
 			munmap(notify_buff,notify_buff_size);
 		}
-		notify_buff = mmap(NULL,size,PROT_READ | PROT_WRITE, MAP_ANON | MAP_PRIVATE,-1,0);
+		notify_buff = mmap_safe(NULL,size,PROT_READ | PROT_WRITE, MAP_ANON | MAP_PRIVATE,-1,0);
 #else
 		if (notify_buff) {
 			free(notify_buff);
@@ -282,7 +286,7 @@ void fs_notify_sendremoved(uint32_t cnt,uint32_t *inodes) {
 		if (notify_buff) {
 			munmap(notify_buff,notify_buff_size);
 		}
-		notify_buff = mmap(NULL,DEFAULT_OUTPUT_BUFFSIZE,PROT_READ | PROT_WRITE, MAP_ANON | MAP_PRIVATE,-1,0);
+		notify_buff = mmap_safe(NULL,DEFAULT_OUTPUT_BUFFSIZE,PROT_READ | PROT_WRITE, MAP_ANON | MAP_PRIVATE,-1,0);
 #else
 		if (notify_buff) {
 			free(notify_buff);
@@ -454,7 +458,7 @@ void fs_output_buffer_init(threc *rec,uint32_t size) {
 		if (rec->obuff) {
 			munmap((void*)(rec->obuff),rec->obuffsize);
 		}
-		rec->obuff = (void*)mmap(NULL,size,PROT_READ | PROT_WRITE, MAP_ANON | MAP_PRIVATE,-1,0);
+		rec->obuff = (void*)mmap_safe(NULL,size,PROT_READ | PROT_WRITE, MAP_ANON | MAP_PRIVATE,-1,0);
 #else
 		if (rec->obuff) {
 			free(rec->obuff);
@@ -467,7 +471,7 @@ void fs_output_buffer_init(threc *rec,uint32_t size) {
 		if (rec->obuff) {
 			munmap((void*)(rec->obuff),rec->obuffsize);
 		}
-		rec->obuff = (void*)mmap(NULL,DEFAULT_OUTPUT_BUFFSIZE,PROT_READ | PROT_WRITE, MAP_ANON | MAP_PRIVATE,-1,0);
+		rec->obuff = (void*)mmap_safe(NULL,DEFAULT_OUTPUT_BUFFSIZE,PROT_READ | PROT_WRITE, MAP_ANON | MAP_PRIVATE,-1,0);
 #else
 		if (rec->obuff) {
 			free(rec->obuff);
@@ -487,7 +491,7 @@ void fs_input_buffer_init(threc *rec,uint32_t size) {
 		if (rec->ibuff) {
 			munmap((void*)(rec->ibuff),rec->ibuffsize);
 		}
-		rec->ibuff = (void*)mmap(NULL,size,PROT_READ | PROT_WRITE, MAP_ANON | MAP_PRIVATE,-1,0);
+		rec->ibuff = (void*)mmap_safe(NULL,size,PROT_READ | PROT_WRITE, MAP_ANON | MAP_PRIVATE,-1,0);
 #else
 		if (rec->ibuff) {
 			free(rec->ibuff);
@@ -500,7 +504,7 @@ void fs_input_buffer_init(threc *rec,uint32_t size) {
 		if (rec->ibuff) {
 			munmap((void*)(rec->ibuff),rec->ibuffsize);
 		}
-		rec->ibuff = (void*)mmap(NULL,DEFAULT_INPUT_BUFFSIZE,PROT_READ | PROT_WRITE, MAP_ANON | MAP_PRIVATE,-1,0);
+		rec->ibuff = (void*)mmap_safe(NULL,DEFAULT_INPUT_BUFFSIZE,PROT_READ | PROT_WRITE, MAP_ANON | MAP_PRIVATE,-1,0);
 #else
 		if (rec->ibuff) {
 			free(rec->ibuff);
@@ -1397,7 +1401,7 @@ void* fs_receive_thread(void *arg) {
 					if (notify_buff) {
 						munmap(notify_buff,notify_buff_size);
 					}
-					notify_buff = mmap(NULL,size,PROT_READ | PROT_WRITE, MAP_ANON | MAP_PRIVATE,-1,0);
+					notify_buff = mmap_safe(NULL,size,PROT_READ | PROT_WRITE, MAP_ANON | MAP_PRIVATE,-1,0);
 #else
 					if (notify_buff) {
 						free(notify_buff);
@@ -1410,7 +1414,7 @@ void* fs_receive_thread(void *arg) {
 					if (notify_buff) {
 						munmap(notify_buff,notify_buff_size);
 					}
-					notify_buff = mmap(NULL,DEFAULT_INPUT_BUFFSIZE,PROT_READ | PROT_WRITE, MAP_ANON | MAP_PRIVATE,-1,0);
+					notify_buff = mmap_safe(NULL,DEFAULT_INPUT_BUFFSIZE,PROT_READ | PROT_WRITE, MAP_ANON | MAP_PRIVATE,-1,0);
 #else
 					if (notify_buff) {
 						free(notify_buff);
