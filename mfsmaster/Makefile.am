@@ -17,8 +17,8 @@ mfsmaster_SOURCES=\
 	datacachemgr.c datacachemgr.h \
 	chartsdata.c chartsdata.h \
 	init.h \
-	../mfsmetarestore/restore.c ../mfsmetarestore/restore.h \
-	../mfsmetarestore/merger.c ../mfsmetarestore/merger.h \
+	restore.c restore.h \
+	merger.c merger.h \
 	../mfscommon/main.c ../mfscommon/main.h \
 	../mfscommon/cfg.c ../mfscommon/cfg.h \
 	../mfscommon/random.c ../mfscommon/random.h \

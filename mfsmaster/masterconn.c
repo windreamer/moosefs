@@ -44,7 +44,7 @@
 #include "sockets.h"
 #include "filesystem.h"
 #include "changelog.h"
-#include "../mfsmetarestore/restore.h"
+#include "restore.h"
 
 #define MaxPacketSize 1500000
 

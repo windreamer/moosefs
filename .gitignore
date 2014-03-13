@@ -7,7 +7,7 @@ tags
 *.taghl
 Makefile
 Makefile.in
-/aclocal.m4
+/aclocal.m*
 /autom4te.cache/
 /config.guess
 /config.h
@@ -35,8 +35,10 @@ Makefile.in
 /mfsmetalogger/mfsmetalogger
 /mfsmetadump/mfsmetadump
 /mfsmetarestore/mfsmetarestore
+/mfscgi/mfsrun
 /mfsmount/mfsmount
 /mfsmount/mfstools
 /missing
+/compile
 /stamp-h1
 *.tar.gz

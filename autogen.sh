@@ -13,6 +13,8 @@ if [ -x /opt/local/bin/glibtoolize ]; then
 	/opt/local/bin/glibtoolize --copy --force
 elif [ -x /usr/bin/glibtoolize ]; then
 	/usr/bin/glibtoolize --copy --force
+elif [ -x /usr/local/bin/glibtoolize ]; then
+	/usr/local/bin/glibtoolize --copy --force
 else
 	libtoolize --copy --force
 fi

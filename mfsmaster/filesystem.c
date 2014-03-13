@@ -53,7 +53,7 @@
 #include "main.h"
 #include "changelog.h"
 #include "masterconn.h"
-#include "../mfsmetarestore/merger.h"
+#include "merger.h"
 #endif
 
 #define USE_FREENODE_BUCKETS 1
@@ -8659,74 +8659,6 @@ int fs_load(FILE *fd,int ignoreflag,uint8_t fver) {
 	return 0;
 }
 
-/*
-uint64_t fs_loadversion_1_4(FILE *fd) {
-	uint8_t hdr[12];
-	const uint8_t *ptr;
-	uint64_t fversion;
-
-	if (fread(hdr,1,12,fd)!=12) {
-		return 0;
-	}
-	ptr = hdr+4;
-//	maxnodeid = get32bit(&ptr);
-	fversion = get64bit(&ptr);
-//	nextsessionid = get32bit(&ptr);
-	return fversion;
-}
-
-int fs_load_1_4(FILE *fd) {
-	uint8_t hdr[16];
-	const uint8_t *ptr;
-	if (fread(hdr,1,16,fd)!=16) {
-#ifdef METARESTORE
-		printf("error reading metadata (header)\n");
-#else
-		syslog(LOG_ERR,"error reading metadata (header)");
-#endif
-		return -1;
-	}
-	ptr = hdr;
-	maxnodeid = get32bit(&ptr);
-	metaversion = get64bit(&ptr);
-	nextsessionid = get32bit(&ptr);
-	fsnodes_init_freebitmask();
-	if (fs_loadnode_1_4(NULL,fd)<0 || root==NULL) {
-#ifdef METARESTORE
-		printf("error reading metadata (tree)\n");
-#else
-		syslog(LOG_ERR,"error reading metadata (tree)");
-#endif
-		return -1;
-	}
-	if (fs_loadtrash_1_4(fd)<0) {
-#ifdef METARESTORE
-		printf("error reading metadata (trash)\n");
-#else
-		syslog(LOG_ERR,"error reading metadata (trash)");
-#endif
-		return -1;
-	}
-	if (fs_loadreserved_1_4(fd)<0) {
-#ifdef METARESTORE
-		printf("error reading metadata (reserved)\n");
-#else
-		syslog(LOG_ERR,"error reading metadata (reserved)");
-#endif
-		return -1;
-	}
-	if (fs_loadfree(fd)<0) {
-#ifdef METARESTORE
-		printf("error reading metadata (free)\n");
-#else
-		syslog(LOG_ERR,"error reading metadata (free)");
-#endif
-		return -1;
-	}
-	return 0;
-}
-*/
-
 #ifndef METARESTORE
 void fs_new(void) {
 	uint32_t nodepos;
@@ -8734,7 +8666,7 @@ void fs_new(void) {
 	statsrecord *sr;
 //#endif
 	maxnodeid = MFS_ROOT_ID;
-	metaversion = 0;
+	metaversion = 1;
 	nextsessionid = 1;
 	fsnodes_init_freebitmask();
 	root = malloc(sizeof(fsnode));
@@ -9098,15 +9030,11 @@ int fs_loadall(void) {
 	uint8_t hdr[8];
 	uint8_t bhdr[8];
 	uint64_t backversion;
-	int converted=0;
 
 	backversion = 0;
 	fd = fopen("metadata.mfs.back","r");
 	if (fd!=NULL) {
 		if (fread(bhdr,1,8,fd)==8) {
-//			if (memcmp(bhdr,MFSSIGNATURE "M 1.4",8)==0) {
-//				backversion = fs_loadversion_1_4(fd);
-//			} else
 			if (memcmp(bhdr,MFSSIGNATURE "M 1.",7)==0 && (bhdr[7]=='5' || bhdr[7]=='7')) {
 				backversion = fs_loadversion(fd);
 			}
@@ -9173,23 +9101,6 @@ int fs_loadall(void) {
 		fs_storeall(0);	// after creating new filesystem always create "back" file for using in metarestore
 		return 0;
 	}
-/*
-	if (memcmp(hdr,MFSSIGNATURE "M 1.4",8)==0) {
-		converted=1;
-		if (fs_load_1_4(fd)<0) {
-			fprintf(stderr,"error reading metadata (structure)\n");
-			syslog(LOG_ERR,"error reading metadata (structure)");
-			fclose(fd);
-			return -1;
-		}
-		if (chunk_load(fd)<0) {
-			fprintf(stderr,"error reading metadata (chunks)\n");
-			syslog(LOG_ERR,"error reading metadata (chunks)");
-			fclose(fd);
-			return -1;
-		}
-	} else
-*/
 	if (memcmp(hdr,MFSSIGNATURE "M 1.5",8)==0) {
 		if (fs_load(fd,0,0x15)<0) {
 			syslog(LOG_ERR,"error reading metadata (structure)");
@@ -9219,20 +9130,9 @@ int fs_loadall(void) {
 		mfs_syslog(LOG_ERR,"backup file is newer than current file - please check it manually - probably you should run metarestore");
 		return -1;
 	}
-	if (converted==1) {
-		if (rename("metadata.mfs","metadata.mfs.back.1.4")<0) {
-			mfs_errlog(LOG_ERR,"can't rename metadata.mfs -> metadata.mfs.back.1.4");
-			return -1;
-		}
-		fs_storeall(0);	// after conversion always create new version of "back" file for using in proper version of metarestore
-//	} else if (converted==2) {
-//		rename("metadata.mfs","metadata.mfs.back.1.3");
-//		fs_storeall(0);	// after conversion always create new version of "back" file for using in proper version of metarestore
-	} else {
-		if (rename("metadata.mfs","metadata.mfs.back")<0) {
-			mfs_errlog(LOG_ERR,"can't rename metadata.mfs -> metadata.mfs.back");
-			return -1;
-		}
+	if (rename("metadata.mfs","metadata.mfs.back")<0) {
+		mfs_errlog(LOG_ERR,"can't rename metadata.mfs -> metadata.mfs.back");
+		return -1;
 	}
 	fprintf(stderr,"connecting files and chunks ... ");
 	fflush(stderr);

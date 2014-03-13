@@ -173,12 +173,10 @@ void matoclserv_stats(uint64_t stats[5]) {
 	stats[1] = stats_psent;
 	stats[2] = stats_brcvd;
 	stats[3] = stats_bsent;
-	stats[4] = stats_notify;
 	stats_prcvd = 0;
 	stats_psent = 0;
 	stats_brcvd = 0;
 	stats_bsent = 0;
-	stats_notify = 0;
 }
 
 // cache notification routines
