@@ -35,5 +35,6 @@ void* main_timeregister (int mode,uint32_t seconds,uint32_t offset,void (*fun)(v
 int main_timechange(void *x,int mode,uint32_t seconds,uint32_t offset);
 uint32_t main_time(void);
 uint64_t main_utime(void);
+uint64_t main_precise_utime(void);
 
 #endif

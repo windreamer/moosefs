@@ -44,6 +44,7 @@
 #include "massert.h"
 #include "mfsstrerr.h"
 #include "hashfn.h"
+#include "median.h"
 
 #define MaxPacketSize 500000000
 
@@ -88,7 +89,6 @@ typedef struct matocsserventry {
 	struct matocsserventry *next;
 } matocsserventry;
 
-static uint64_t maxtotalspace;
 static matocsserventry *matocsservhead=NULL;
 static int lsock;
 static int32_t lsockpdescpos;
@@ -578,30 +578,74 @@ int matocsserv_carry_compare(const void *a,const void *b) {
 	return 0;
 }
 
-uint16_t matocsserv_getservers_wrandom(void* ptrs[65536],uint16_t demand) {
+uint16_t matocsserv_getservers_wrandom(void* ptrs[65536],double tolerance,uint16_t demand) {
 	static struct rservsort {
 		double w;
 		double carry;
 		matocsserventry *ptr;
 	} servtab[65536];
+	double servmed[65536];
+	double median,m;
 	matocsserventry *eptr;
+	uint64_t maxtotalspace;
 	double carry;
 	uint32_t i;
 	uint32_t allcnt;
 	uint32_t availcnt;
+	uint32_t mediancnt;
+	uint8_t useonlymedian;
+
+	/* find max total space */
+	maxtotalspace = 0;
+	for (eptr = matocsservhead ; eptr ; eptr=eptr->next) {
+		if ((eptr->mode==HEADER || eptr->mode==DATA) && eptr->totalspace > maxtotalspace) {
+			maxtotalspace = eptr->totalspace;
+		}
+	}
+
 	if (maxtotalspace==0) {
 		return 0;
+	}
+
+	/* find median usage */
+	allcnt=0;
+	for (eptr = matocsservhead ; eptr && allcnt<65536 ; eptr=eptr->next) {
+		if (eptr->mode!=KILL && eptr->totalspace>0 && eptr->usedspace<=eptr->totalspace && (eptr->totalspace - eptr->usedspace)>MFSCHUNKSIZE) {
+			servmed[allcnt] = (double)(eptr->usedspace)/(double)(eptr->totalspace);
+			allcnt++;
+		}
+	}
+	useonlymedian = 0;
+	if (allcnt>=5) {
+		median = median_find(servmed,allcnt);
+		mediancnt = 0;
+		for (eptr = matocsservhead ; eptr && allcnt<65536 ; eptr=eptr->next) {
+			if (eptr->mode!=KILL && eptr->totalspace>0 && eptr->usedspace<=eptr->totalspace && (eptr->totalspace - eptr->usedspace)>MFSCHUNKSIZE) {
+				m = (double)(eptr->usedspace)/(double)(eptr->totalspace);
+				if (m > median - tolerance && m < median + tolerance) {
+					mediancnt++;
+				}
+			}
+		}
+		if (mediancnt * 3 > allcnt * 2) {
+			useonlymedian = 1;
+		}
+	} else {
+		median = 0.0; // make compiler happy
 	}
 	allcnt=0;
 	availcnt=0;
 	for (eptr = matocsservhead ; eptr && allcnt<65536 ; eptr=eptr->next) {
 		if (eptr->mode!=KILL && eptr->totalspace>0 && eptr->usedspace<=eptr->totalspace && (eptr->totalspace - eptr->usedspace)>MFSCHUNKSIZE) {
-			servtab[allcnt].w = (double)eptr->totalspace/(double)maxtotalspace;
-			servtab[allcnt].carry = eptr->carry;
-			servtab[allcnt].ptr = eptr;
-			allcnt++;
-			if (eptr->carry>=1.0) {
-				availcnt++;
+			m = (double)(eptr->usedspace)/(double)(eptr->totalspace);
+			if (useonlymedian==0 || (m > median - tolerance && m < median + tolerance)) {
+				servtab[allcnt].w = (double)eptr->totalspace/(double)maxtotalspace;
+				servtab[allcnt].carry = eptr->carry;
+				servtab[allcnt].ptr = eptr;
+				allcnt++;
+				if (eptr->carry>=1.0) {
+					availcnt++;
+				}
 			}
 		}
 	}
@@ -612,6 +656,9 @@ uint16_t matocsserv_getservers_wrandom(void* ptrs[65536],uint16_t demand) {
 		availcnt=0;
 		for (i=0 ; i<allcnt ; i++) {
 			carry = servtab[i].carry + servtab[i].w;
+			if (carry>10.0) {
+				carry = 10.0;
+			}
 			servtab[i].carry = carry;
 			servtab[i].ptr->carry = carry;
 			if (carry>=1.0) {
@@ -1519,9 +1566,6 @@ void matocsserv_register(matocsserventry *eptr,const uint8_t *data,uint32_t leng
 			eptr->mode=KILL;
 			return;
 		}
-		if (eptr->totalspace>maxtotalspace) {
-			maxtotalspace=eptr->totalspace;
-		}
 		us = (double)(eptr->usedspace)/(double)(1024*1024*1024);
 		ts = (double)(eptr->totalspace)/(double)(1024*1024*1024);
 		syslog(LOG_NOTICE,"chunkserver register - ip: %s, port: %"PRIu16", usedspace: %"PRIu64" (%.2lf GiB), totalspace: %"PRIu64" (%.2lf GiB)",eptr->servstrip,eptr->servport,eptr->usedspace,us,eptr->totalspace,ts);
@@ -1552,9 +1596,6 @@ void matocsserv_space(matocsserventry *eptr,const uint8_t *data,uint32_t length)
 	passert(data);
 	eptr->usedspace = get64bit(&data);
 	eptr->totalspace = get64bit(&data);
-	if (eptr->totalspace>maxtotalspace) {
-		maxtotalspace=eptr->totalspace;
-	}
 	if (length==40) {
 		eptr->chunkscount = get32bit(&data);
 	}
@@ -1852,16 +1893,20 @@ void matocsserv_desc(struct pollfd *pdesc,uint32_t *ndesc) {
 	pos++;
 //	FD_SET(lsock,rset);
 	for (eptr=matocsservhead ; eptr ; eptr=eptr->next) {
-		pdesc[pos].fd = eptr->sock;
-		pdesc[pos].events = POLLIN;
-		eptr->pdescpos = pos;
+		if (eptr->mode!=KILL) {
+			pdesc[pos].fd = eptr->sock;
+			pdesc[pos].events = POLLIN;
+			eptr->pdescpos = pos;
 //		i=eptr->sock;
 //		FD_SET(i,rset);
-		if (eptr->outputhead!=NULL) {
-			pdesc[pos].events |= POLLOUT;
+			if (eptr->outputhead!=NULL) {
+				pdesc[pos].events |= POLLOUT;
 //			FD_SET(i,wset);
+			}
+			pos++;
+		} else {
+			eptr->pdescpos = -1;
 		}
-		pos++;
 //		if (i>max) max=i;
 	}
 	*ndesc = pos;
@@ -1874,6 +1919,14 @@ void matocsserv_serve(struct pollfd *pdesc) {
 	matocsserventry *eptr,**kptr;
 	packetstruct *pptr,*paptr;
 	int ns;
+	static uint64_t lastaction = 0;
+	static uint64_t lastdisconnect = 0;
+	uint64_t unow;
+	uint32_t timeoutadd;
+
+	if (lastaction==0) {
+		lastaction = main_precise_utime();
+	}
 
 	if (lsockpdescpos>=0 && (pdesc[lsockpdescpos].revents & POLLIN)) {
 //	if (FD_ISSET(lsock,rset)) {
@@ -1925,6 +1978,8 @@ void matocsserv_serve(struct pollfd *pdesc) {
 //				eptr->replication=NULL;
 		}
 	}
+
+// read
 	for (eptr=matocsservhead ; eptr ; eptr=eptr->next) {
 		if (eptr->pdescpos>=0) {
 			if (pdesc[eptr->pdescpos].revents & (POLLERR|POLLHUP)) {
@@ -1935,8 +1990,26 @@ void matocsserv_serve(struct pollfd *pdesc) {
 				eptr->lastread = now;
 				matocsserv_read(eptr);
 			}
-			if ((pdesc[eptr->pdescpos].revents & POLLOUT) && eptr->mode!=KILL) {
-//			if (FD_ISSET(eptr->sock,wset) && eptr->mode!=KILL) {
+		}
+	}
+
+// timeout fix
+	unow = main_precise_utime();
+	timeoutadd = (unow-lastaction)/1000000;
+	if (timeoutadd) { // more than one second passed - then fix 'timeout' timestamps
+		for (eptr=matocsservhead ; eptr ; eptr=eptr->next) {
+			eptr->lastread += timeoutadd;
+		}
+	}
+	lastaction = unow;
+
+// write
+	for (eptr=matocsservhead ; eptr ; eptr=eptr->next) {
+		if ((uint32_t)(eptr->lastwrite+(eptr->timeout/3))<(uint32_t)now && eptr->outputhead==NULL && eptr->mode!=KILL) {
+			matocsserv_createpacket(eptr,ANTOAN_NOP,0);
+		}
+		if (eptr->pdescpos>=0) {
+			if ((((pdesc[eptr->pdescpos].events & POLLOUT)==0 && (eptr->outputhead)) || (pdesc[eptr->pdescpos].revents & POLLOUT)) && eptr->mode!=KILL) {
 				eptr->lastwrite = now;
 				matocsserv_write(eptr);
 			}
@@ -1944,13 +2017,12 @@ void matocsserv_serve(struct pollfd *pdesc) {
 		if ((uint32_t)(eptr->lastread+eptr->timeout)<(uint32_t)now) {
 			eptr->mode = KILL;
 		}
-		if ((uint32_t)(eptr->lastwrite+(eptr->timeout/3))<(uint32_t)now && eptr->outputhead==NULL) {
-			matocsserv_createpacket(eptr,ANTOAN_NOP,0);
-		}
 	}
+
+// close
 	kptr = &matocsservhead;
 	while ((eptr=*kptr)) {
-		if (eptr->mode == KILL) {
+		if (eptr->mode == KILL && (lastdisconnect+100000 < main_precise_utime())) {
 			double us,ts;
 			us = (double)(eptr->usedspace)/(double)(1024*1024*1024);
 			ts = (double)(eptr->totalspace)/(double)(1024*1024*1024);
@@ -1978,6 +2050,7 @@ void matocsserv_serve(struct pollfd *pdesc) {
 			}
 			*kptr = eptr->next;
 			free(eptr);
+			lastdisconnect = main_precise_utime();
 		} else {
 			kptr = &(eptr->next);
 		}

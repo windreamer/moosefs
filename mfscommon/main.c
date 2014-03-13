@@ -297,6 +297,16 @@ uint64_t main_utime() {
 	return usecnow;
 }
 
+uint64_t main_precise_utime() {
+	struct timeval tv;
+	uint64_t r;
+	gettimeofday(&tv,NULL);
+	r = tv.tv_sec;
+	r *= 1000000;
+	r += tv.tv_usec;
+	return r;
+}
+
 void destruct() {
 	deentry *deit;
 	for (deit = dehead ; deit!=NULL ; deit=deit->next ) {

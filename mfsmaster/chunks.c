@@ -408,9 +408,6 @@ chunk* chunk_new(uint64_t chunkid) {
 	uint32_t chunkpos = HASHPOS(chunkid);
 	chunk *newchunk;
 	newchunk = chunk_malloc();
-#ifdef METARESTORE
-	printf("N%"PRIu64"\n",chunkid);
-#endif
 #ifndef METARESTORE
 	chunks++;
 	allchunkcounts[0][0]++;
@@ -441,9 +438,6 @@ chunk* chunk_new(uint64_t chunkid) {
 chunk* chunk_find(uint64_t chunkid) {
 	uint32_t chunkpos = HASHPOS(chunkid);
 	chunk *chunkit;
-#ifdef METARESTORE
-	printf("F%"PRIu64"\n",chunkid);
-#endif
 	if (lastchunkid==chunkid) {
 		return lastchunkptr;
 	}
@@ -875,9 +869,6 @@ static inline int chunk_delete_file_int(chunk *c,uint8_t goal) {
 	if (c->fcount==1) {
 		c->goal = 0;
 		c->fcount = 0;
-#ifdef METARESTORE
-		printf("D%"PRIu64"\n",c->chunkid);
-#endif
 	} else {
 		if (c->ftab) {
 			c->ftab[goal]--;
@@ -1048,7 +1039,7 @@ int chunk_multi_modify(uint32_t ts,uint64_t *nchunkid,uint64_t ochunkid,uint8_t 
 	if (ochunkid==0) {	// new chunk
 //		servcount = matocsserv_getservers_ordered(ptrs,MINMAXRND,NULL,NULL);
 #ifndef METARESTORE
-		servcount = matocsserv_getservers_wrandom(ptrs,goal);
+		servcount = matocsserv_getservers_wrandom(ptrs,AcceptableDifference/2.0,goal);
 		if (servcount==0) {
 			uint16_t uscount,tscount;
 			double minusage,maxusage;
@@ -2833,12 +2824,12 @@ void chunk_reload(void) {
 		}
 	}
 
-	AcceptableDifference = cfg_getdouble("ACCEPTABLE_DIFFERENCE",0.1);
-	if (AcceptableDifference<0.001) {
-		AcceptableDifference = 0.001;
+	AcceptableDifference = cfg_getdouble("ACCEPTABLE_DIFFERENCE",0.05);
+	if (AcceptableDifference<0.01) {
+		AcceptableDifference = 0.01;
 	}
-	if (AcceptableDifference>10.0) {
-		AcceptableDifference = 10.0;
+	if (AcceptableDifference>0.1) {
+		AcceptableDifference = 0.1;
 	}
 }
 #endif
@@ -2911,12 +2902,12 @@ int chunk_strinit(void) {
 			HashCPS = MAXCPS;
 		}
 	}
-	AcceptableDifference = cfg_getdouble("ACCEPTABLE_DIFFERENCE",0.1);
-	if (AcceptableDifference<0.001) {
-		AcceptableDifference = 0.001;
+	AcceptableDifference = cfg_getdouble("ACCEPTABLE_DIFFERENCE",0.05);
+	if (AcceptableDifference<0.01) {
+		AcceptableDifference = 0.01;
 	}
-	if (AcceptableDifference>10.0) {
-		AcceptableDifference = 10.0;
+	if (AcceptableDifference>0.1) {
+		AcceptableDifference = 0.1;
 	}
 #endif
 	for (i=0 ; i<HASHSIZE ; i++) {

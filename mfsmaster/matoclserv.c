@@ -3955,6 +3955,13 @@ void matoclserv_serve(struct pollfd *pdesc) {
 	matoclserventry *eptr,**kptr;
 	packetstruct *pptr,*paptr;
 	int ns;
+	static uint64_t lastaction = 0;
+	uint64_t unow;
+	uint32_t timeoutadd;
+
+	if (lastaction==0) {
+		lastaction = main_precise_utime();
+	}
 
 	if (lsockpdescpos>=0 && (pdesc[lsockpdescpos].revents & POLLIN)) {
 //	if (FD_ISSET(lsock,rset)) {
@@ -4009,6 +4016,16 @@ void matoclserv_serve(struct pollfd *pdesc) {
 		}
 	}
 
+// timeout fix
+	unow = main_precise_utime();
+	timeoutadd = (unow-lastaction)/1000000;
+	if (timeoutadd) {
+		for (eptr=matoclservhead ; eptr ; eptr=eptr->next) {
+			eptr->lastread += timeoutadd;
+		}
+	}
+	lastaction = unow;
+
 // write
 	for (eptr=matoclservhead ; eptr ; eptr=eptr->next) {
 		if (eptr->lastwrite+2<now && eptr->registered<100 && eptr->outputhead==NULL) {
@@ -4059,6 +4076,7 @@ void matoclserv_serve(struct pollfd *pdesc) {
 			kptr = &(eptr->next);
 		}
 	}
+
 }
 
 void matoclserv_start_cond_check(void) {

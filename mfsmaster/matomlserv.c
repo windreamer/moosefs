@@ -638,6 +638,13 @@ void matomlserv_serve(struct pollfd *pdesc) {
 	matomlserventry *eptr,**kptr;
 	packetstruct *pptr,*paptr;
 	int ns;
+	static uint64_t lastaction = 0;
+	uint64_t unow;
+	uint32_t timeoutadd;
+
+	if (lastaction==0) {
+		lastaction = main_precise_utime();
+	}
 
 	if (lsockpdescpos>=0 && (pdesc[lsockpdescpos].revents & POLLIN)) {
 		ns=tcpaccept(lsock);
@@ -671,6 +678,8 @@ void matomlserv_serve(struct pollfd *pdesc) {
 			eptr->chain2fd=-1;
 		}
 	}
+
+// read
 	for (eptr=matomlservhead ; eptr ; eptr=eptr->next) {
 		if (eptr->pdescpos>=0) {
 			if (pdesc[eptr->pdescpos].revents & (POLLERR|POLLHUP)) {
@@ -680,7 +689,26 @@ void matomlserv_serve(struct pollfd *pdesc) {
 				eptr->lastread = now;
 				matomlserv_read(eptr);
 			}
-			if ((pdesc[eptr->pdescpos].revents & POLLOUT) && eptr->mode!=KILL) {
+		}
+	}
+
+// timeout fix
+	unow = main_precise_utime();
+	timeoutadd = (unow-lastaction)/1000000;
+	if (timeoutadd) {
+		for (eptr=matomlservhead ; eptr ; eptr=eptr->next) {
+			eptr->lastread += timeoutadd;
+		}
+	}
+	lastaction = unow;
+
+// write
+	for (eptr=matomlservhead ; eptr ; eptr=eptr->next) {
+		if ((uint32_t)(eptr->lastwrite+(eptr->timeout/3))<(uint32_t)now && eptr->outputhead==NULL) {
+			matomlserv_createpacket(eptr,ANTOAN_NOP,0);
+		}
+		if (eptr->pdescpos>=0) {
+			if ((((pdesc[eptr->pdescpos].events & POLLOUT)==0 && (eptr->outputhead)) || (pdesc[eptr->pdescpos].revents & POLLOUT)) && eptr->mode!=KILL) {
 				eptr->lastwrite = now;
 				matomlserv_write(eptr);
 			}
@@ -688,10 +716,9 @@ void matomlserv_serve(struct pollfd *pdesc) {
 		if ((uint32_t)(eptr->lastread+eptr->timeout)<(uint32_t)now) {
 			eptr->mode = KILL;
 		}
-		if ((uint32_t)(eptr->lastwrite+(eptr->timeout/3))<(uint32_t)now && eptr->outputhead==NULL) {
-			matomlserv_createpacket(eptr,ANTOAN_NOP,0);
-		}
 	}
+
+// close
 	kptr = &matomlservhead;
 	while ((eptr=*kptr)) {
 		if (eptr->mode == KILL) {
