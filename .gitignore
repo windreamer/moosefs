@@ -26,6 +26,7 @@ Makefile.in
 /mfscgi/mfscgiserv
 /mfscgi/chart.cgi
 /mfscgi/mfs.cgi
+/mfscgi/mfsrun
 /mfschunkserver/mfschunkserver
 /mfsdata/mfschunkserver.cfg
 /mfsdata/mfsmaster.cfg
