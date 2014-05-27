@@ -2004,7 +2004,6 @@ void matocsserv_flush(void) {
 
 void matocsserv_nop(void) {    
 	uint32_t now=main_time();
-	static uint64_t lastdisconnect = 0;
 	matocsserventry *eptr,**kptr;
 	packetstruct *pptr,*paptr;
 	
@@ -2018,7 +2017,7 @@ void matocsserv_nop(void) {
 			eptr->lastwrite = now;
 			matocsserv_write(eptr);
 		}
-		if (eptr->mode == KILL && (lastdisconnect+100000 < main_precise_utime())) {
+		if (eptr->mode == KILL) {
 			double us,ts;
 			us = (double)(eptr->usedspace)/(double)(1024*1024*1024);
 			ts = (double)(eptr->totalspace)/(double)(1024*1024*1024);
@@ -2048,7 +2047,6 @@ void matocsserv_nop(void) {
 			}
 			*kptr = eptr->next;
 			free(eptr);
-			lastdisconnect = main_precise_utime();
 		} else {
 			kptr = &(eptr->next);
 		}
